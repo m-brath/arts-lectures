@@ -57,8 +57,7 @@ data_folder = (
     "/scratch2/u237/user_data/mbrath/EarthCARE_Scenes/39320_test_data/"
 )
 
-# lat_range = [15.5, 16.5]  # °
-lat_range = [16, 17]
+lat_range = [-14, -12]  # degrees
 alt_max = 15e3  # m
 
 # Amount of Oxygen
@@ -67,8 +66,11 @@ O2vmr = 0.2095
 # Amount of Nitrogen
 N2vmr = 0.7808
 
-#T emperature offset of dropsonde
+# Temperature offset of dropsonde
 T_offset=1. #K
+
+# water vapor offset in vmr of dropsonde
+WV_offset=0.1
 
 # %% load data
 
@@ -355,7 +357,7 @@ for i, name in enumerate(col_names):
 # simply select one of these profiles
 # to keep it simple we simply take the middle
 
-idx_selected = N_profiles // 2
+idx_selected = N_profiles -1
 
 dropsonde = pa.arts.GriddedField4()
 dropsonde.set_grid(0, ["T", "z", "abs_species-H2O"])
@@ -372,7 +374,8 @@ dropsonde.data[0, :, 0, 0] += rng.normal(0, 0.5, len(dropsonde.grids[1]))+T_offs
 
 vmr_noise_free = dropsonde.data[2, :, 0, 0] * 1.0
 temp = np.log10(dropsonde.data[2, :, 0, 0])
-temp += rng.normal(0, 0.05, len(dropsonde.grids[1]))
+temp += rng.normal(0, 0.1, len(dropsonde.grids[1]))
+temp += WV_offset
 dropsonde.data[2, :, 0, 0] = 10**temp
 
 
@@ -472,6 +475,8 @@ batch_aux2d.savexml("atmosphere/aux2d_true.xml")
 dropsonde.savexml("observation/dropsonde.xml")
 
 # %% save figures
+
+os.makedirs('check_plots', exist_ok=True)
 
 fig1.savefig("check_plots/profiles.pdf")
 fig.savefig("check_plots/columns.pdf")
