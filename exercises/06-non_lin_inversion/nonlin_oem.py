@@ -59,6 +59,11 @@ import pyarts.workspace
 import pyarts as pa
 from pyarts import xml
 
+# %% Constants
+
+triple_point_water = 273.16  # Triple point temperature in K
+
+
 # %% ARTS functions
 
 def basic_setup(f_grid, sensor_description=[], verbosity=0):
@@ -694,7 +699,352 @@ def temperature_retrieval(
     return T_ret, DeltaT, y_fit
 
 
+def retrieval_WV(
+    ws, y, S_y, S_a, max_iter=50, stop_dx=0.01, Diagnostics=False, Verbosity=False, **kwargs
+):
+    
+
+    # Copy the measeurement vector to the ARTS workspace
+    ws.y = y
+
+    # Switch off cloudbox only clear sky
+    ws.cloudboxOff()
+
+    # Start definition of retrieval quantities
+    ###########################################################################
+    ws.retrievalDefInit()
+
+    # Add water vapor as retrieval quantity
+    try:
+        idx=[ii for ii, xx in enumerate(ws.abs_species.value) if "H2O" in str(xx)][0] 
+        species_string=str(ws.abs_species.value[idx])
+        ws.retrievalAddAbsSpecies(g1=ws.p_grid, g2=ws.lat_grid, g3=ws.lon_grid, species=species_string, unit="vmr")
+    except IndexError:
+        print("No water vapor species found.")
+        return
+    
+    ws.jacobianSetFuncTransformation(transformation_func='log10')
+
+    # Set a priori covariance matrix
+    ws.covmat_sxAddBlock(block=S_a)
+
+    # Set measurement error covariance matrix
+    ws.covmat_seAddBlock(block=S_y)
+
+    # Close retrieval definition
+    ws.retrievalDefClose()
+    ############################################################################
+
+    # Initialise
+    # x, jacobian and yf must be initialised
+    ws.VectorSet(ws.x, [])
+    ws.VectorSet(ws.yf, [])
+    ws.MatrixSet(ws.jacobian, [])
+
+    # Iteration agenda
+    @pa.workspace.arts_agenda
+    def inversion_iterate_agenda(ws):
+
+        ws.Ignore(ws.inversion_iteration_counter)
+
+        # Map x to ARTS' variables
+        ws.x2artsAtmAndSurf()
+
+        # To be safe, rerun some checks
+        ws.atmfields_checkedCalc()
+        ws.atmgeom_checkedCalc()
+
+        # Calculate yf and Jacobian matching x.
+        ws.yCalc(y=ws.yf)
+        ws.jacobianAdjustAndTransform()
+
+    #
+    ws.inversion_iterate_agenda = inversion_iterate_agenda
+
+    # some basic checks
+    ws.atmfields_checkedCalc()
+    ws.atmgeom_checkedCalc()
+    ws.cloudbox_checkedCalc()
+    ws.sensor_checkedCalc()
+
+    # create a priori
+    ws.xaStandard()
+
+    # Run OEM
+    ws.OEM(
+        method="lm",
+        max_iter=max_iter,
+        display_progress=int(Verbosity),
+        stop_dx=stop_dx,
+        lm_ga_settings=[100, 2, 3, 1e5, 1, 99],
+    )
+    #
+    if Verbosity == True:
+        ws.Print(ws.oem_errors, 0)
+
+    oem_diagostics = ws.oem_diagnostics.value[:]
+    if oem_diagostics[0] > 0:
+        print(f"Convergence status:                    {oem_diagostics[0]}")
+        print(f"Start value of cost function:          {oem_diagostics[1]}")
+        print(f"End value of cost function:            {oem_diagostics[2]}")
+        print(f"End value of y-part of cost function:  {oem_diagostics[3]}")
+        print(f"Number of iterations:                  {oem_diagostics[4]}\n")
+
+    # Compute averaging kernel matrix
+    ws.avkCalc()
+
+    # Compute smoothing error covariance matrix
+    ws.covmat_ssCalc()
+
+    # Compute observation system error covariance matrix
+    ws.covmat_soCalc()
+
+    # Extract observation errors
+    ws.retrievalErrorsExtract()
+
+    result = {}
+    result["x"] = ws.x.value[:] * 1.0
+    result["x_apr"] = ws.xa.value[:] * 1.0
+    result["y_fit"] = ws.yf.value[:] * 1.0
+    result["S_o"] = ws.covmat_so.value[:] * 1.0
+    result["S_s"] = ws.covmat_ss.value[:] * 1.0
+    result["dx_o"] = ws.retrieval_eo.value[:] * 1.0
+    result["dx_s"] = ws.retrieval_ss.value[:] * 1.0
+    if Diagnostics:
+        result["A"] = ws.avk.value[:] * 1.0
+        result["G"] = ws.dxdy.value[:] * 1.0
+
+    return result
+
+def watervapor_retrieval(
+    y_obs,
+    f_grid,
+    sensor_altitude,
+    sensor_los,
+    background_atmosphere,
+    surface_temperature,
+    surface_reflectivity,
+    S_y,
+    S_a,
+    sensor_description=[],
+    Diagnostics=False,
+    Verbosity=False,
+    **kwargs
+):
+    
+
+    if np.size(sensor_description)>0:
+        print('Ignoring f_grid\n output will be sensor channels')
+        ws = basic_setup([],sensor_description=sensor_description)
+    else:
+        ws = basic_setup(f_grid)
+
+    prepare_initial_conditions(
+        ws, background_atmosphere, surface_temperature, surface_reflectivity
+    )
+
+    set_sensor_position_and_view(ws, sensor_altitude, sensor_los)
+
+    result = retrieval_WV(
+        ws, y_obs, S_y, S_a, Diagnostics=Diagnostics, Verbosity=Verbosity, **kwargs
+    )
+
+    WV_ret = result["x"]
+    DeltaWV = np.sqrt(result["dx_o"] ** 2 + result["dx_s"] ** 2)
+    y_fit = result["y_fit"]
+
+    if Diagnostics:
+
+        A = result["A"]
+        G = result["G"]
+
+        return WV_ret, DeltaWV, y_fit, A, G, result
+
+    return WV_ret, DeltaWV, y_fit, result
+
 # %% aux functions
+
+def vmr2relative_humidity(vmr, p, T, e_eq=None):
+    r"""Convert water vapor VMR into relative humidity.
+
+    .. math::
+        \mathrm{RH} = \frac{x \cdot p}{e_s(T)}
+
+    Note:
+        By default, the relative humidity is calculated with respect to
+        saturation over liquid water in accordance to the WMO standard for
+        radiosonde observations.
+        You can use :func:`~typhon.physics.e_eq_mixed_mk` to calculate
+        relative humidity with respect to saturation over the mixed-phase
+        following the IFS model documentation.
+
+    Parameters:
+        vmr (float or ndarray): Volume mixing ratio,
+        p (float or ndarray): Pressure [Pa].
+        T (float or ndarray): Temperature [K].
+        e_eq (callable): Function to calculate the equilibrium vapor
+            pressure of water in Pa. The function must implement the
+            signature ``e_eq = f(T)`` where ``T`` is temperature in Kelvin.
+            If ``None`` the function :func:`~typhon.physics.e_eq_water_mk` is
+            used.
+
+    Returns:
+        float or ndarray: Relative humidity [unitless].
+
+    See also:
+        :func:`~typhon.physics.relative_humidity2vmr`
+            Complement function (returns VMR for given RH).
+        :func:`~typhon.physics.e_eq_water_mk`
+            Used to calculate the equilibrium water vapor pressure.
+
+    Examples:
+        >>> vmr2relative_humidity(0.025, 1013e2, 300)
+        0.71604995533615401
+    """
+    if e_eq is None:
+        e_eq = e_eq_water_mk
+
+    return vmr * p / e_eq(T)
+
+def e_eq_ice_mk(T):
+    r"""Calculate the equilibrium vapor pressure of water over ice.
+
+    .. math::
+        \ln(e_\mathrm{ice}) = 9.550426
+                   - \frac{5723.265}{T}
+                   + 3.53068 \cdot \ln(T)
+                   - 0.00728332 \cdot T
+
+    Parameters:
+        T (float or ndarray): Temperature [K].
+
+    Returns:
+        float or ndarray: Equilibrium vapor pressure [Pa].
+
+    See also:
+        :func:`~typhon.physics.e_eq_water_mk`
+            Calculate the equilibrium vapor pressure over liquid water.
+        :func:`~typhon.physics.e_eq_mixed_mk`
+            Calculate the vapor pressure of water over the mixed phase.
+
+    References:
+        Murphy, D. M. and Koop, T. (2005): Review of the vapour pressures of
+        ice and supercooled water for atmospheric applications,
+        Quarterly Journal of the Royal Meteorological Society 131(608):
+        1539–1565. doi:10.1256/qj.04.94
+
+    """
+    if np.any(T <= 0):
+        raise ValueError('Temperatures must be larger than 0 Kelvin.')
+
+    # Give the natural log of saturation vapor pressure over ice in Pa
+    e = 9.550426 - 5723.265 / T + 3.53068 * np.log(T) - 0.00728332 * T
+
+    return np.exp(e)
+
+
+def e_eq_water_mk(T):
+    r"""Calculate the equilibrium vapor pressure of water over liquid water.
+
+    .. math::
+        \ln(e_\mathrm{liq}) &=
+                    54.842763 - \frac{6763.22}{T} - 4.21 \cdot \ln(T) \\
+                    &+ 0.000367 \cdot T
+                    + \tanh \left(0.0415 \cdot (T - 218.8)\right) \\
+                    &\cdot \left(53.878 - \frac{1331.22}{T}
+                                 - 9.44523 \cdot \ln(T)
+                                 + 0.014025 \cdot T \right)
+
+    Parameters:
+        T (float or ndarray): Temperature [K].
+
+    Returns:
+        float or ndarray: Equilibrium vapor pressure [Pa].
+
+    See also:
+        :func:`~typhon.physics.e_eq_ice_mk`
+            Calculate the equilibrium vapor pressure of water over ice.
+        :func:`~typhon.physics.e_eq_mixed_mk`
+            Calculate the vapor pressure of water over the mixed phase.
+
+    References:
+        Murphy, D. M. and Koop, T. (2005): Review of the vapour pressures of
+        ice and supercooled water for atmospheric applications,
+        Quarterly Journal of the Royal Meteorological Society 131(608):
+        1539–1565. doi:10.1256/qj.04.94
+
+    """
+    if np.any(T <= 0):
+        raise ValueError('Temperatures must be larger than 0 Kelvin.')
+
+    # Give the natural log of saturation vapor pressure over water in Pa
+
+    e = (54.842763
+         - 6763.22 / T
+         - 4.21 * np.log(T)
+         + 0.000367 * T
+         + np.tanh(0.0415 * (T - 218.8))
+         * (53.878 - 1331.22 / T - 9.44523 * np.log(T) + 0.014025 * T))
+
+    return np.exp(e)
+
+def e_eq_mixed_mk(T):
+    r"""Return equilibrium pressure of water with respect to the mixed-phase.
+
+    The equilibrium pressure over water is taken for temperatures above the
+    triple point :math:`T_t` the value over ice is taken for temperatures
+    below :math:`T_t–23\,\mathrm{K}`.  For intermediate temperatures the
+    equilibrium pressure is computed as a combination
+    of the values over water and ice according to the IFS documentation:
+
+    .. math::
+        e_\mathrm{s} = \begin{cases}
+            T > T_t, & e_\mathrm{liq} \\
+            T < T_t - 23\,\mathrm{K}, & e_\mathrm{ice} \\
+            else, & e_\mathrm{ice}
+                + (e_\mathrm{liq} - e_\mathrm{ice})
+                \cdot \left(\frac{T - T_t - 23}{23}\right)^2
+        \end{cases}
+
+    References:
+        IFS Documentation – Cy45r1,
+        Operational implementation 5 June 2018,
+        Part IV: Physical Processes, Chapter 12, Eq. 12.13,
+        https://www.ecmwf.int/node/18714
+
+    Parameters:
+        T (float or ndarray): Temperature [K].
+
+    See also:
+        :func:`~typhon.physics.e_eq_ice_mk`
+            Equilibrium pressure of water over ice.
+        :func:`~typhon.physics.e_eq_water_mk`
+            Equilibrium pressure of water over liquid water.
+
+    Returns:
+        float or ndarray: Equilibrium pressure [Pa].
+    """
+    # Keep track of input type to match the return type.
+    is_float_input = np.isscalar(T)
+    if is_float_input:
+        # Convert float input to ndarray to allow indexing.
+        T = np.asarray([T])
+
+    e_eq_water = e_eq_water_mk(T)
+    e_eq_ice = e_eq_ice_mk(T)
+
+    is_water = T > triple_point_water
+
+    is_ice = T < (triple_point_water - 23.)
+
+    e_eq = (e_eq_ice + (e_eq_water - e_eq_ice)
+            * ((T - triple_point_water + 23) / 23)**2
+            )
+    e_eq[is_ice] = e_eq_ice[is_ice]
+    e_eq[is_water] = e_eq_water[is_water]
+
+    return e_eq[0] if is_float_input else e_eq
+
 
 
 def create_apriori_covariance_matrix(x, z, delta_x, correlation_length):

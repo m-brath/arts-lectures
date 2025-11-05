@@ -3,10 +3,13 @@
 """
 Simulate airborne radiometric measurements from a HALO-like airplane.
 
-This script simulates radiometric measurements of atmospheric radiation in three frequency bands:
+This script simulates radiometric measurements of atmospheric radiation in five frequency bands:
 - H2O (22 GHz)
 - O2_low (50 GHz)  
+- Window (90 GHz)
 - O2_high (118 GHz)
+- H2O (183 GHz)
+
 
 The simulation assumes:
 - Aircraft altitude of 15 km
@@ -82,8 +85,8 @@ lat = np.array([auxs[i].data[0] for i in range(len(auxs))])
 # %% simulate the observation
 
 
-bands = ["K", "V", "F"]
-suffixes = ["22GHz", "50GHz", "118GHz"]
+bands = ["K", "V", "W", "F", "G"]
+suffixes = ["22GHz", "50GHz", "90GHz", "118GHz", "183GHz"]
 
 
 results = {}
@@ -156,7 +159,7 @@ cmap = np.array(
 )
 
 
-fig, ax = plt.subplots(3, 1, figsize=(16, 10))
+fig, ax = plt.subplots(len(bands), 1, figsize=(16, 16), sharey=False)
 
 for i, band in enumerate(bands):
 

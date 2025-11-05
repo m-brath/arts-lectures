@@ -54,7 +54,7 @@ from typhon.constants import gas_constant_water_vapor
 # %% paths / constants
 
 data_folder = (
-    "/scratch/u237/user_data/mbrath/EarthCARE_Scenes/39320_test_data/"
+    "/scratch2/u237/user_data/mbrath/EarthCARE_Scenes/39320_test_data/"
 )
 
 # lat_range = [15.5, 16.5]  # °
