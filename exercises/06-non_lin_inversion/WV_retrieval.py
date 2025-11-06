@@ -239,7 +239,7 @@ for i in range(np.size(y_obs, 0)):
 
 # %% plot the whole segment
 
-fig, ax = plt.subplots(2, 2, figsize=(14.14, 10))
+fig, ax = plt.subplots(2, 3, figsize=(14.14, 10))
 
 #plot difference to a priori
 cmap = "YlOrRd"
@@ -267,7 +267,7 @@ pcm = ax[0, 1].pcolormesh(
 fig.colorbar(pcm, ax=ax[0, 1], label="$\Delta$ log$_{10}vmr$ / 1")
 ax[0, 1].set_xlabel("Latitude [deg]")
 ax[0, 1].set_ylabel("Altitude [km]")
-ax[0, 1].set_title("Retrieved Temperature uncertainty")
+ax[0, 1].set_title("Retrieved log$_{10}vmr$ uncertainty")
 
 #plot observed and fitted brightness temperatures
 for i in range(np.size(y_obs, 1)):
@@ -287,5 +287,35 @@ ax[1, 1].plot(lat, y_obs - y_fit_all, "-", label="residual")
 ax[1, 1].set_xlabel("Latitude [deg]")
 ax[1, 1].set_ylabel("Brightness temperature [K]")
 ax[1, 1].set_title("Residuals")
+
+#plot retrieved data
+pcm = ax[0, 2].pcolormesh(
+    lat,
+    z_ret / 1e3,
+    WV_all.T,
+    cmap=cmap,
+    clim=[np.min(WV_all), np.max(WV_all)],
+    rasterized=True,
+)
+fig.colorbar(pcm, ax=ax[0, 2], label="log$_{10}vmr$ / 1")
+ax[0, 2].set_xlabel("Latitude [deg]")
+ax[0, 2].set_ylabel("Altitude [km]")
+ax[0, 2].set_title("Retrieved log$_{10}vmr$")
+
+#plot true data
+pcm = ax[1, 2].pcolormesh(
+    lat,
+    z_true / 1e3,
+    np.log10(
+        np.array([atms[i].get("abs_species-H2O", keep_dims=False) for i in range(len(atms))]).T
+    ),
+    cmap=cmap,
+    clim=[np.min(WV_all), np.max(WV_all)],
+    rasterized=True,
+)
+fig.colorbar(pcm, ax=ax[1, 2], label="log$_{10}vmr$ / 1")
+ax[1, 2].set_xlabel("Latitude [deg]")
+ax[1, 2].set_ylabel("Altitude [km]")
+ax[1, 2].set_title("True log$_{10}vmr$")    
 
 fig.tight_layout()
