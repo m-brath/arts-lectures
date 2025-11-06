@@ -463,7 +463,7 @@ def prepare_initial_conditions(
 
 
 def retrieval_T(
-    ws, y, S_y, S_a, max_iter=50, stop_dx=0.01, Diagnostics=False, Verbosity=False
+    ws, y, S_y, S_a, max_iter=50, stop_dx=0.01, Diagnostics=False, Verbosity=False, **kwargs
 ):
     """
     Performs temperature retrieval using Optimal Estimation Method (OEM).
@@ -623,6 +623,7 @@ def temperature_retrieval(
     sensor_description=[],
     Diagnostics=False,
     Verbosity=False,
+    **kwargs
 ):
     """Retrieves atmospheric temperature profile using the Optimal Estimation Method (OEM).
     This function performs a non-linear retrieval of atmospheric temperature profiles from
@@ -682,7 +683,7 @@ def temperature_retrieval(
     set_sensor_position_and_view(ws, sensor_altitude, sensor_los)
 
     result = retrieval_T(
-        ws, y_obs, S_y, S_a, Diagnostics=Diagnostics, Verbosity=Verbosity
+        ws, y_obs, S_y, S_a, Diagnostics=Diagnostics, Verbosity=Verbosity, **kwargs
     )
 
     T_ret = result["x"]

@@ -109,7 +109,7 @@ T_ret, DeltaT, y_fit, A, G = nlo.temperature_retrieval(
     S_a,
     Diagnostics=True,
     Verbosity=True,
-    sensor_description=sensor_characteristics
+    sensor_description=sensor_characteristics,    
 )
 
 
@@ -144,11 +144,14 @@ ax[0].set_xlabel("Temperature [K]")
 ax[0].set_ylabel("Altitude [m]")
 ax[0].legend()
 
-# Plot true temperature profile
+# Plot temperature profile
 ax[1].plot(T_true, z_true, "x-", label="truth")
+ax[1].plot(T_apr, z_ret, "x-", label="a priori")
+ax[1].plot(T_ret, z_ret, "x-", label="retrieved")
 ax[1].set_xlabel("Temperature [K]")
 ax[1].set_ylabel("Altitude [m]")
-ax[1].set_title("T$_{true}$")
+ax[1].set_title("Temperature Profiles")
+ax[1].legend()
 
 ax[2].plot(f_grid, y, "x-", label="obs")
 ax[2].plot(f_grid, y_fit, "s-", label="fit")
@@ -229,7 +232,7 @@ for i in range(np.size(y_obs, 0)):
 
 # %% plot the whole segment
 
-fig, ax = plt.subplots(2, 2, figsize=(14.14, 10))
+fig, ax = plt.subplots(2, 3, figsize=(14.14, 10))
 
 #plot difference to a priori
 cmap = "YlOrRd"
@@ -277,5 +280,34 @@ ax[1, 1].plot(lat, y_obs - y_fit_all, "-", label="residual")
 ax[1, 1].set_xlabel("Latitude [deg]")
 ax[1, 1].set_ylabel("Brightness temperature [K]")
 ax[1, 1].set_title("Residuals")
+
+# plot retrieved temperature
+pcm=ax[0, 2].pcolormesh(
+    lat,
+    z_ret / 1e3,
+    T_all.T,
+    cmap=cmap,
+    rasterized=True,
+    clim=[np.min(T_all), np.max(T_all)],
+)
+fig.colorbar(pcm, ax=ax[0, 2], label="T$_{ret}$ [K]")
+ax[0, 2].set_xlabel("Latitude [deg]")
+ax[0, 2].set_ylabel("Altitude [km]")
+ax[0, 2].set_title("Retrieved Temperature T$_{ret}$ [K]")       
+
+# plot true temperature
+pcm = ax[1, 2].pcolormesh(
+    lat,
+    z_true / 1e3,
+    np.array([atms[i].get("T", keep_dims=False) for i in range(len(atms))]).T,
+    cmap=cmap,
+    rasterized=True,
+    clim=[np.min(T_all), np.max(T_all)],
+)
+fig.colorbar(pcm, ax=ax[1, 2], label="T$_{true}$ [K]")
+ax[1, 2].set_xlabel("Latitude [deg]")
+ax[1, 2].set_ylabel("Altitude [km]")
+ax[1, 2].set_title("True Temperature T$_{true}$ [K]")
+    
 
 fig.tight_layout()
