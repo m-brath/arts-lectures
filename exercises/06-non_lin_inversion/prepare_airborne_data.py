@@ -57,7 +57,7 @@ data_folder = (
     "/scratch2/u237/user_data/mbrath/EarthCARE_Scenes/39320_test_data/"
 )
 
-lat_range = [24.5, 26.5]  # degrees
+lat_range = [13,15]  # degrees
 alt_max = 15e3  # m
 
 # Amount of Oxygen
@@ -355,7 +355,7 @@ for i, name in enumerate(col_names):
 
 # %% Create 'dropsonde data'
 
-# here we create two dropsonde data. one for the temperature retrieval exercise 
+# here we create two dropsonde data. one for the temperature retrieval exercise
 # and one for the water vapor retrieval exercise
 # The main difference is that the dropsonde for the water vapor retrieval has
 # an offset in water vapor vmr and higher noise
@@ -401,7 +401,7 @@ dropsonde_WV.data[2, :, 0, 0] = 10**temp
 # plot dropsonde data
 fig2, ax2 = plt.subplots(2, 2, figsize=(10, 10), sharey=True)
 
-ax2.flatten()
+ax2=ax2.flatten()
 ax2[0].plot(dropsonde_T.data[0, :, 0, 0], dropsonde_T.grids[1] / 1e3, label="obs")  # T
 ax2[0].plot(T_noise_free_T, dropsonde_T.grids[1] / 1e3, label="true")
 ax2[0].set_title("Temperature (for T retrieval)")
@@ -416,7 +416,7 @@ ax2[1].set_title("H2O (for T retrieval)")
 ax2[1].set_xlabel("H2O / vmr")
 ax2[1].set_ylabel("p / hPa")
 ax2[1].set_yscale("log")
-ax2[1].legend() 
+ax2[1].legend()
 
 ax2[2].plot(dropsonde_WV.data[0, :, 0, 0], dropsonde_WV.grids[1] / 1e3, label="obs")  # T
 ax2[2].plot(T_noise_free_WV, dropsonde_WV.grids[1] / 1e3, label="true")

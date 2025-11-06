@@ -109,7 +109,7 @@ T_ret, DeltaT, y_fit, A, G = nlo.temperature_retrieval(
     S_a,
     Diagnostics=True,
     Verbosity=True,
-    sensor_description=sensor_characteristics,    
+    sensor_description=sensor_characteristics,
 )
 
 
@@ -293,7 +293,7 @@ pcm=ax[0, 2].pcolormesh(
 fig.colorbar(pcm, ax=ax[0, 2], label="T$_{ret}$ [K]")
 ax[0, 2].set_xlabel("Latitude [deg]")
 ax[0, 2].set_ylabel("Altitude [km]")
-ax[0, 2].set_title("Retrieved Temperature T$_{ret}$ [K]")       
+ax[0, 2].set_title("Retrieved Temperature T$_{ret}$ [K]")
 
 # plot true temperature
 pcm = ax[1, 2].pcolormesh(
