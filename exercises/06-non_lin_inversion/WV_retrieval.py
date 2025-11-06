@@ -63,7 +63,7 @@ sensor_los = 180.0
 atms = pa.xml.load("atmosphere/atmospheres_true.xml")
 
 # load dropsonde data this will serve as a priori and background data
-dropsonde = pa.xml.load("observation/dropsonde.xml")
+dropsonde = pa.xml.load("observation/dropsonde_WV.xml")
 
 # load frequency data for 183 GHz channels
 sensor_characteristics=pa.xml.load("observation/SensorCharacteristics_183GHz.xml")[:]
