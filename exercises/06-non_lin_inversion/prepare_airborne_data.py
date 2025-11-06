@@ -57,7 +57,7 @@ data_folder = (
     "/scratch2/u237/user_data/mbrath/EarthCARE_Scenes/39320_test_data/"
 )
 
-lat_range = [-17, -15]  # degrees
+lat_range = [24.5, 26.5]  # degrees
 alt_max = 15e3  # m
 
 # Amount of Oxygen
@@ -357,7 +357,7 @@ for i, name in enumerate(col_names):
 # simply select one of these profiles
 # to keep it simple we simply take the middle
 
-idx_selected = N_profiles -1
+idx_selected = 0 #N_profiles -1
 
 dropsonde = pa.arts.GriddedField4()
 dropsonde.set_grid(0, ["T", "z", "abs_species-H2O"])
