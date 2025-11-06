@@ -57,7 +57,7 @@ data_folder = (
     "/scratch2/u237/user_data/mbrath/EarthCARE_Scenes/39320_test_data/"
 )
 
-lat_range = [-14, -12]  # degrees
+lat_range = [-17, -15]  # degrees
 alt_max = 15e3  # m
 
 # Amount of Oxygen
